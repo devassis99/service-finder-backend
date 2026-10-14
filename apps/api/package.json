@@ -1,0 +1,58 @@
+{
+  "name": "@service-finder/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Service Finder HTTP API — everything the back office (and, later, the provider and customer apps) call.",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "!dist/*.tsbuildinfo"
+  ],
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch --conditions=service-finder-source src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --conditions=service-finder-source src/db/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx --conditions=service-finder-source src/modules/auth/auth.seed.ts",
+    "db:seed:permissions": "tsx --conditions=service-finder-source src/modules/roles/bo-permissions.seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^3.2.0",
+    "@service-finder/auth": "workspace:*",
+    "@service-finder/db": "workspace:*",
+    "@service-finder/valkey": "workspace:*",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "catalog:",
+    "express": "^5.0.1",
+    "google-auth-library": "^11.0.2",
+    "jsonwebtoken": "catalog:",
+    "otplib": "^13.4.1",
+    "qrcode": "^1.5.4",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "catalog:",
+    "@types/node": "catalog:",
+    "@types/qrcode": "^1.5.6",
+    "@types/swagger-ui-express": "^4.1.8",
+    "drizzle-kit": "^0.31.6",
+    "tsx": "^4.19.2",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

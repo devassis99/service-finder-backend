@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": false,
+    // Read the workspace packages (@service-finder/*) from their TypeScript
+    // source, not their build, so the editor and `pnpm typecheck` work
+    // without building them first. tsconfig.build.json turns this off.
+    "customConditions": ["service-finder-source"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

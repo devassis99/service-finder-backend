@@ -1,0 +1,29 @@
+# One repository, several deployables. Each app under apps/ is its own
+# package with its own dependencies, built into its own image — so a
+# future socket server never ships the AWS SDK, and a Kafka consumer or a
+# Lambda later on ships only what it imports. Code they share lives in
+# packages/.
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# One version of everything more than one package depends on, written
+# here once and referenced as "catalog:" in each package.json. Two copies
+# of drizzle-orm would give the API and @service-finder/db two different
+# `db` types; two copies of a test runner or TypeScript would just be
+# noise.
+catalog:
+  "@types/jsonwebtoken": ^9.0.10
+  "@types/node": ^22.10.2
+  "@types/pg": ^8.11.10
+  drizzle-orm: ^0.44.6
+  ioredis: 5.11.1
+  jsonwebtoken: ^9.0.3
+  pg: ^8.13.1
+  typescript: ^5.6.3
+  vitest: ^3.0.0
+  zod: ^3.23.8
+
+allowBuilds:
+  "@scarf/scarf": false
+  esbuild: false

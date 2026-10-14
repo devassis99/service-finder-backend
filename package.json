@@ -1,0 +1,42 @@
+{
+  "name": "service-finder-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Service Finder's backend services — a pnpm workspace. Each deployable is an app under apps/, with its own dependencies; shared code goes in packages/.",
+  "license": "MIT",
+  "scripts": {
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @service-finder/api start",
+    "dev": "pnpm --filter @service-finder/api dev",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @service-finder/api db:generate",
+    "db:migrate": "pnpm --filter @service-finder/api db:migrate",
+    "db:push": "pnpm --filter @service-finder/api db:push",
+    "db:studio": "pnpm --filter @service-finder/api db:studio",
+    "db:seed": "pnpm --filter @service-finder/api db:seed",
+    "db:seed:permissions": "pnpm --filter @service-finder/api db:seed:permissions",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt --write .",
+    "fmt:check": "oxfmt --check .",
+    "test": "pnpm -r test",
+    "test:watch": "pnpm --filter @service-finder/api test:watch",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,js}": [
+      "oxfmt",
+      "oxlint --fix"
+    ]
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.20.0"
+}

@@ -1,0 +1,16 @@
+{
+  // What `pnpm build` compiles: this app against the packages' own builds
+  // (their dist/ .d.ts and .js, which is also what the image runs), each
+  // built first by `tsc -b` if it's out of date.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "customConditions": [],
+    // Inside dist/, so deleting dist/ always means a full rebuild.
+    "tsBuildInfoFile": "dist/tsconfig.build.tsbuildinfo"
+  },
+  "references": [
+    { "path": "../../packages/auth" },
+    { "path": "../../packages/db" },
+    { "path": "../../packages/valkey" }
+  ]
+}

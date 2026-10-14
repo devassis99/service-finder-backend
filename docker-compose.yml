@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: service-finder-postgres
+    restart: unless-stopped
+    environment:
+      # Matches apps/api/.env.example — change these (and your .env)
+      # together if you want different local credentials. Not used in any
+      # real environment beyond your machine.
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: service_finder
+    ports:
+      # host:container — the backend (running on your host via `pnpm dev`)
+      # reaches Postgres at localhost:5433, matching DATABASE_URL in .env.
+      # 5433 rather than 5432 so this runs alongside iGroom's Postgres,
+      # which already holds 5432 on the same machine.
+      - "5433:5432"
+    volumes:
+      - service_finder_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d service_finder"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # The local stand-in for ElastiCache Serverless (Valkey): shared,
+  # short-lived state — today the sign-in rate limits. A single node, not
+  # a cluster — set REDIS_CLUSTER=false (the default) and the backend
+  # talks to it plainly. No volume: every key it holds expires on its own.
+  # 6380 on the host, for the same side-by-side reason as Postgres.
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: service-finder-valkey
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  service_finder_postgres_data:
+    name: service_finder_postgres_data

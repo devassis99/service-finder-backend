@@ -1,0 +1,42 @@
+# Everything the build does not need, at any depth — apps live in
+# subfolders now, and a pattern without **/ only matches the root.
+# node_modules especially: it is installed inside the image from the
+# lockfile, and copying a host node_modules in would ship whichever
+# platform's native binaries the developer happens to have.
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/*.tsbuildinfo
+.pnpm-store
+
+.git
+.github
+.husky
+.vscode
+.idea
+**/.DS_Store
+
+# Local-only secrets — each app keeps its own .env beside its
+# package.json. .env.example stays, as documentation.
+**/.env
+**/.env.*
+!**/.env.example
+
+docker-compose.yml
+Dockerfile
+.dockerignore
+**/*.log
+**/README.md
+deploy/README.md
+deploy/ecs/
+
+# Parked work — not part of the application.
+_to_delete/
+
+# Tests and lint config do not run in the image; the pipeline runs them
+# before it builds one.
+**/*.test.ts
+**/vitest.config.ts
+.oxlintrc.json
+.oxfmtrc.json

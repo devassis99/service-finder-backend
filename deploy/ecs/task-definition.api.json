@@ -1,0 +1,87 @@
+{
+  "family": "service-finder-backend-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/serviceFinderEcsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/serviceFinderBackendTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/service-finder-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "name": "http",
+          "containerPort": 3000,
+          "protocol": "tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "readonlyRootFilesystem": false,
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "TZ",
+          "value": "UTC"
+        },
+        {
+          "name": "REDIS_CLUSTER",
+          "value": "true"
+        },
+        {
+          "name": "CORS_ORIGINS",
+          "value": "<CORS_ORIGINS>"
+        },
+        {
+          "name": "RESEND_FROM_EMAIL",
+          "value": "Service Finder <onboarding@resend.dev>"
+        },
+        {
+          "name": "SECRETS_MANAGER_SECRET_ID",
+          "value": "service-finder/backend"
+        },
+        {
+          "name": "DATABASE_CA_BUNDLE_PATH",
+          "value": "/etc/ssl/rds/global-bundle.pem"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "<REGION>"
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "stopTimeout": 30,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/service-finder-backend",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "api",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

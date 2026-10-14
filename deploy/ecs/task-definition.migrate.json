@@ -1,0 +1,53 @@
+{
+  "family": "service-finder-backend-migrate",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/serviceFinderEcsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/serviceFinderBackendTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "migrate",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/service-finder-backend:latest",
+      "essential": true,
+      "command": ["node", "dist/db/migrate.js"],
+      "readonlyRootFilesystem": false,
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "TZ",
+          "value": "UTC"
+        },
+        {
+          "name": "SECRETS_MANAGER_SECRET_ID",
+          "value": "service-finder/backend"
+        },
+        {
+          "name": "DATABASE_CA_BUNDLE_PATH",
+          "value": "/etc/ssl/rds/global-bundle.pem"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "<REGION>"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/service-finder-backend",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "migrate",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

@@ -1,1 +1,184 @@
 # service-finder-backend
+
+Node.js + TypeScript backend for Service Finder — a pnpm workspace, built on
+the same stack, packages and layout as `igroom-backend`.
+
+## Layout
+
+```
+apps/
+  api/          the HTTP API (Express 5) — its own package.json and .env
+packages/
+  db/           @service-finder/db — the schema, its migrations (drizzle/) and the connection pools
+  valkey/       @service-finder/valkey — the Valkey client, with a deadline on every call
+  auth/         @service-finder/auth — every access token's format (back office today)
+deploy/         the container entrypoint, ECS task definitions, run-task.sh, changed-apps.mjs
+Dockerfile      builds any app: `docker build --build-arg APP=api .` (api is the default)
+```
+
+Each app is a separate deployable with only its own dependencies — add a
+dependency to an app with `pnpm --filter @service-finder/api add <pkg>`, never
+to the root. Each also deploys on its own lane of
+`.github/workflows/deploy.yml`, and only when something it is built from
+changed — see [deploy/README.md](deploy/README.md#which-apps-a-run-deploys).
+Every command below runs from the repo root and is forwarded to the right app.
+
+Code goes in a package when more than one app needs it. A package never reads
+the environment: each app validates its own env (`src/config/env.ts`) and
+passes what a package needs in once, in one small file — for the API,
+`src/db/index.ts`, `src/shared/redis.ts` and `src/modules/auth/jwt.ts`. A
+dependency more than one package uses gets its version from the `catalog:` in
+`pnpm-workspace.yaml`, so the API and `@service-finder/db` can't end up on two
+drizzle-orm versions.
+
+In development, tests and `pnpm typecheck`, apps read the packages straight
+from their TypeScript source (the `service-finder-source` export condition),
+so a change to a package shows up at once with nothing to rebuild — which is
+why every `tsx` script in an app's package.json passes
+`--conditions=service-finder-source`, and a new one needs it too. `pnpm build`
+compiles every package to its `dist/` and the apps against those, which is
+what an image runs.
+
+The schema and its migrations live in `packages/db`, but the API is the one
+app that generates and applies migrations — `pnpm db:generate` and
+`pnpm db:migrate` run there, against `apps/api/.env`.
+
+## What's in the core
+
+Everything an area of Service Finder will be built on, and nothing specific to
+any one area yet:
+
+| Concern             | Where                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| Config, fail-fast   | `apps/api/src/config/env.ts` (zod)                                                  |
+| Database            | `packages/db` — pools, read replicas, verified TLS, `timestamps` helper, migrations |
+| Errors → HTTP       | `apps/api/src/shared/middlewares/error-handler.ts`                                  |
+| API docs            | `/docs` and `/docs.json`, generated from each module's zod validators               |
+| Rate limiting       | `apps/api/src/shared/rate-limit.ts` (Valkey, fail-open)                             |
+| Email               | `apps/api/src/shared/email.ts` (Resend, console fallback in dev)                    |
+| Back-office sign-in | `modules/auth` — Google ID token, mandatory TOTP MFA, rotating refresh tokens       |
+| Back-office users   | `modules/users` — invite (pre-provision), change role, deactivate                   |
+| Roles & permissions | `modules/roles` — RBAC, enforced per route by `requirePermission("key")`            |
+
+### Adding an area
+
+One folder per area under `apps/api/src/modules/<name>/`, the same six files
+every existing module has:
+
+```
+<name>.routes.ts       Router + requireAuth/requirePermission per route
+<name>.controller.ts   parse input with the validators, call the service, shape the response
+<name>.service.ts      the logic, and this module's own error classes
+<name>.validators.ts   zod schemas, registered with the OpenAPI registry
+<name>.openapi.ts      registry.registerPath(...) for each route
+index.ts               the module's public surface — other modules import only this
+```
+
+Then: its tables in `packages/db/src/schema/` (+ an export in `schema/index.ts`
+and `pnpm db:generate`), its router in `app.ts`, its `*.openapi.ts` in
+`shared/openapi/document.ts`, its paths in `app.routes.test.ts`, its error
+classes in `error-handler.ts`, and its permission keys in
+`modules/roles/bo-permissions.seed.ts` (then `pnpm db:seed:permissions`).
+
+### What was left out of iGroom, deliberately
+
+Shops, bookings, availability, POS, waitlist, marketplace, Stripe billing,
+uploads to S3 and the realtime (Socket.IO) server are iGroom's business. Each
+is a module (or, for realtime, an app plus `packages/events`) that can be
+brought across once Service Finder's own version of it is defined — the
+workspace, Dockerfile, `changed-apps.mjs` and the workflow already handle a
+second app under `apps/`.
+
+## Requirements
+
+- Node.js 22 (see `.nvmrc`)
+- pnpm (`corepack enable` — the version is pinned in `package.json`)
+- Docker (for local Postgres and Valkey)
+
+## Ports
+
+Chosen so Service Finder runs alongside iGroom on one machine:
+
+|             | Service Finder | iGroom |
+| ----------- | -------------: | -----: |
+| API         |           4000 |   3000 |
+| Back office |           5273 |   5173 |
+| Postgres    |           5433 |   5432 |
+| Valkey      |           6380 |   6379 |
+
+Inside a deployed container the API still listens on 3000, like iGroom's, so
+load balancer settings carry across unchanged.
+
+## Getting started
+
+```bash
+docker compose up -d                          # Postgres (5433) + Valkey (6380)
+cp apps/api/.env.example apps/api/.env        # then fill in the blanks below
+pnpm install
+pnpm db:migrate                               # apply the migrations in packages/db/drizzle
+SEED_SUPERADMIN_EMAIL=you@gmail.com pnpm db:seed
+pnpm db:seed:permissions
+pnpm dev                                      # http://localhost:4000, docs at /docs
+```
+
+In `apps/api/.env`, fill in:
+
+- `GOOGLE_CLIENT_ID` — a Google OAuth **Web** client. Reusing iGroom's works;
+  add `http://localhost:5273` to its Authorised JavaScript origins.
+- `JWT_SECRET` and `MFA_ENCRYPTION_KEY` — `openssl rand -hex 32` each. Use
+  different values from iGroom's.
+
+Then sign in to the back office with the seeded Google account; the first
+sign-in walks you through authenticator (TOTP) setup.
+
+Other commands:
+
+```bash
+pnpm db:generate  # SQL migration from schema changes — commit it with the change
+pnpm build        # compile every package, then every app (apps/api → apps/api/dist/)
+pnpm typecheck    # tsc --noEmit in every package and app — no build needed first
+pnpm start        # run the compiled build
+pnpm lint         # oxlint
+pnpm fmt          # oxfmt — formats in place
+pnpm test         # vitest in every package and app (the db is mocked, no Postgres needed)
+```
+
+The rate-limit tests also run against a real Valkey when one is given:
+
+```bash
+TEST_REDIS_URL=redis://localhost:6380 pnpm --filter @service-finder/api exec vitest run src/shared/rate-limit.test.ts
+```
+
+## Seeds
+
+Each is idempotent and safe to re-run on every deploy. Run them in this order
+the first time — the permissions seed grants everything to the `superadmin`
+role that `db:seed` creates, so it has nothing to grant if run first:
+
+```bash
+pnpm db:seed              # the initial super admin (bo_users) + superadmin role
+pnpm db:seed:permissions  # the bo_permissions catalog + endpoint map, granted to superadmin
+```
+
+**Re-run `pnpm db:seed:permissions` after pulling a change that adds a
+permission** — a new key exists only in the seed file until it does, so a role
+can't be granted it and `requirePermission` will 403 everyone.
+
+## Back-office auth, in short
+
+1. `POST /auth/google` verifies a Google ID token. It never creates a user —
+   only a pre-provisioned `bo_users` row (from the seed, or an invite) can sign
+   in; the first sign-in binds that Google account to the row.
+2. It answers with a 10-minute flow token: `mfa_setup_required` the first time,
+   `mfa_challenge_required` after that.
+3. `POST /auth/mfa/setup` + `/auth/mfa/verify-setup`, or `/auth/mfa/challenge`,
+   exchange the flow token and a TOTP code for a session: a 15-minute access
+   token and a 30-day, single-use refresh token (`POST /auth/refresh` rotates
+   it; a reused one is refused).
+4. Wrong codes are limited to 5 per account per 15 minutes, across challenge
+   tokens (429 `TOO_MANY_ATTEMPTS` with `Retry-After`).
+
+Every `/users` and `/roles` route checks its permission key server-side; the
+back office hiding a tab is a convenience, not the enforcement.
+
+Deploying: see [deploy/README.md](deploy/README.md).
