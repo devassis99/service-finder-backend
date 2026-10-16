@@ -9,6 +9,9 @@ import "./health.openapi";
 import "../../modules/auth/auth.openapi";
 import "../../modules/users/users.openapi";
 import "../../modules/roles/roles.openapi";
+import "../../modules/products/products.openapi";
+import "../../modules/prices/prices.openapi";
+import "../../modules/payment-links/payment-links.openapi";
 
 /** Builds the OpenAPI document fresh from whatever's currently registered — call once at startup, not per-request. */
 export function generateOpenApiDocument() {
@@ -19,7 +22,7 @@ export function generateOpenApiDocument() {
       title: "Service Finder API",
       version: "1.0.0",
       description:
-        "Back-office identity today — Google OAuth + mandatory TOTP MFA and RBAC — with Service Finder's own domain to follow.",
+        "Back-office identity — Google OAuth + mandatory TOTP MFA and RBAC — and subscription billing (plans and prices mirrored in Stripe), with Service Finder's own domain to follow.",
     },
     servers: [{ url: "/", description: "Current server" }],
     tags: [
@@ -27,6 +30,10 @@ export function generateOpenApiDocument() {
       { name: "Auth", description: "Google OAuth + mandatory TOTP MFA for back-office users" },
       { name: "Users", description: "Invite and manage back-office users" },
       { name: "Roles", description: "Role & permission management (RBAC)" },
+      {
+        name: "Billing",
+        description: "Subscription plans, prices and payment links, mirrored in Stripe",
+      },
     ],
   });
 }

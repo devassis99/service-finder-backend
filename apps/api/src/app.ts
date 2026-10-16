@@ -5,6 +5,9 @@ import { env } from "./config/env";
 import { authRouter } from "./modules/auth";
 import { usersRouter } from "./modules/users";
 import { rolesRouter } from "./modules/roles";
+import { productsRouter } from "./modules/products";
+import { pricesRouter } from "./modules/prices";
+import { paymentLinksRouter } from "./modules/payment-links";
 import { errorHandler } from "./shared/middlewares/error-handler";
 import { generateOpenApiDocument } from "./shared/openapi/document";
 
@@ -62,6 +65,18 @@ app.get("/health", (_req, res) => {
 app.use("/auth", authRouter);
 app.use("/users", usersRouter);
 app.use("/roles", rolesRouter);
+
+// --- Billing --------------------------------------------------------------
+// Subscription plans, mirrored in Stripe: products (the tiers), their
+// prices (one active per cadence) and the links the Plans page hands out.
+// Three modules on one "/billing" prefix — the URL contract is unchanged
+// from iGroom's, so the back office's billing-api.ts reads the same.
+// Most routes are plans.view/plans.manage; GET /billing/products (the
+// pricing page's catalog) and GET /billing/signup-links/:token (the
+// tenant app's /join page) are public.
+app.use("/billing", productsRouter);
+app.use("/billing", pricesRouter);
+app.use("/billing", paymentLinksRouter);
 
 // --- Service Finder's own domain goes here -------------------------------
 // One module per area under src/modules/<name>/ (routes, controller,

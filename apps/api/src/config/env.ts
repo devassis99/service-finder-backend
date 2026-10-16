@@ -83,6 +83,20 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, "JWT_SECRET should be at least 32 characters"),
   // Encrypts TOTP MFA secrets at rest. Generate with: openssl rand -hex 32
   MFA_ENCRYPTION_KEY: z.string().min(16, "MFA_ENCRYPTION_KEY should be a long random string"),
+  // Stripe secret key (test mode: sk_test_..., live mode: sk_live_...),
+  // from the Stripe Dashboard → Developers → API keys. Every plan, price
+  // and payment link the Plans page creates is created in Stripe first
+  // (src/shared/stripe.ts), so it's required rather than optional: unset,
+  // the server refuses to start instead of 500ing on the first "+ New
+  // Product".
+  STRIPE_SECRET_KEY: z.string().min(1, "STRIPE_SECRET_KEY is required for billing"),
+  // Base URL of the tenant self-signup app (service-finder-frontend-tenant).
+  // The Plans page's per-price "Copy" hands out <this>/join/<token>
+  // signup links, and that app's /join page resolves the token through
+  // the public GET /billing/signup-links/:token. Defaults to its local
+  // Vite dev server (5274, beside the back office's 5273) — override in
+  // every non-local environment.
+  TENANT_APP_URL: z.string().url().default("http://localhost:5274"),
   // Resend API key for transactional email — shared/email.ts's sendEmail.
   // Optional: when unset, emails are logged to the server console instead
   // of sent, which is fine outside production (and refused inside it).

@@ -1,18 +1,19 @@
 import { defineConfig } from "vitest/config";
 
 /**
- * Unit-test config only — no real Postgres or Google involved. Every
- * service test mocks src/db directly (see src/test/mocks/drizzle.ts and
- * each *.test.ts file's own vi.mock calls), so the whole suite runs
- * in-process in milliseconds. That's what makes it cheap enough to run
+ * Unit-test config only — no real Postgres, Stripe or Google involved.
+ * Every service test mocks src/db and src/shared/stripe directly (see
+ * src/test/mocks/drizzle.ts and each *.test.ts file's own vi.mock
+ * calls), so the whole suite runs in-process in milliseconds. That's what makes it cheap enough to run
  * on every commit (see .husky/pre-commit) instead of being pushed out to
  * the slower pre-push gate alongside build/lint.
  *
  * The env values below exist purely to satisfy config/env.ts's fail-fast
  * zod validation at import time (it throws if anything required is
- * missing) — they never reach a real Postgres/Google endpoint, because
- * the modules that would use them for that (src/db, modules/auth/google.ts)
- * are mocked in every test that imports them.
+ * missing) — they never reach a real Postgres/Stripe/Google endpoint,
+ * because the modules that would use them for that (src/db,
+ * shared/stripe, modules/auth/google.ts) are mocked in every test that
+ * imports them.
  *
  * Vitest merges these into process.env before any test file (or the
  * modules it imports) evaluates. config/env.ts's `import "dotenv/config"`
@@ -49,6 +50,7 @@ export default defineConfig({
       GOOGLE_CLIENT_ID: "test-google-client-id.apps.googleusercontent.com",
       JWT_SECRET: "test-jwt-secret-value-1234567890-abcdef",
       MFA_ENCRYPTION_KEY: "test-mfa-encryption-key-0123456789",
+      STRIPE_SECRET_KEY: "sk_test_dummy_key_for_unit_tests",
       // Set, and blank, so a developer's .env can't point unit tests at a
       // real Valkey. src/shared/rate-limit.test.ts talks to one only when
       // TEST_REDIS_URL is given — see that file.

@@ -86,7 +86,7 @@ job, before anything is built, if any of them is unset or empty.
 This one secret is the app's entire environment. `apps/api/src/config/env.ts`
 fails at boot — not at first use — if any of these is missing, so the task
 will crash-loop rather than start degraded: `DATABASE_URL`,
-`GOOGLE_CLIENT_ID`, `JWT_SECRET`, `MFA_ENCRYPTION_KEY`.
+`GOOGLE_CLIENT_ID`, `JWT_SECRET`, `MFA_ENCRYPTION_KEY`, `STRIPE_SECRET_KEY`.
 
 ```bash
 aws secretsmanager create-secret --name service-finder/backend --secret-string '{
@@ -95,6 +95,8 @@ aws secretsmanager create-secret --name service-finder/backend --secret-string '
   "JWT_SECRET": "'"$(openssl rand -hex 32)"'",
   "MFA_ENCRYPTION_KEY": "'"$(openssl rand -hex 32)"'",
   "GOOGLE_CLIENT_ID": "...apps.googleusercontent.com",
+  "STRIPE_SECRET_KEY": "sk_live_...",
+  "TENANT_APP_URL": "https://<tenant-app-domain>",
   "TRUST_PROXY_HOPS": "1",
   "REDIS_URL": "rediss://<elasticache-endpoint>:6379",
   "RESEND_API_KEY": "re_..."
@@ -109,6 +111,15 @@ change is one secret edit rather than a code change.
 `TRUST_PROXY_HOPS` is required in production — `app.ts` refuses to start
 without it — because per-device rate limits key on the caller's address: 1
 behind the ALB alone, 2 with CloudFront in front.
+
+`TENANT_APP_URL` is where the Plans page's "Copy" signup links point
+(`<TENANT_APP_URL>/join/<token>`). Unset, it falls back to the local dev
+server, `http://localhost:5274`, which is wrong for any deployed environment.
+Links are rebuilt from their token on every read, so changing it later moves
+every link already handed out along with it.
+
+Use a test-mode `STRIPE_SECRET_KEY` (`sk_test_...`) for any environment that
+isn't taking real payments.
 
 Generate `JWT_SECRET` and `MFA_ENCRYPTION_KEY` once, here, and keep them
 different from iGroom's. Rotating the first later signs everyone out; rotating
@@ -223,10 +234,13 @@ export AWS_REGION=us-east-1 SUBNETS=subnet-a,subnet-b SECURITY_GROUP=sg-app
 
 sh deploy/run-task.sh -e SEED_SUPERADMIN_EMAIL=you@example.com seed
 sh deploy/run-task.sh seed:permissions
+sh deploy/run-task.sh seed:billing     # optional — placeholder plans, created in Stripe
 ```
 
 Same order as locally — the permissions seed grants everything to the
-`superadmin` role that `seed` creates. The script waits for the task, prints
+`superadmin` role that `seed` creates. `seed:billing` creates real Stripe
+Products and Prices with whichever key the secret holds, so read its `CATALOG`
+first; plans can equally be created from the Plans page. The script waits for the task, prints
 its log whether it passed or failed, and exits non-zero if the container did.
 `-e` sets a variable for that one run, which is where `SEED_SUPERADMIN_EMAIL`
 belongs: it concerns the script, not the running app.

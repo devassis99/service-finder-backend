@@ -45,8 +45,8 @@ app that generates and applies migrations — `pnpm db:generate` and
 
 ## What's in the core
 
-Everything an area of Service Finder will be built on, and nothing specific to
-any one area yet:
+Everything an area of Service Finder will be built on, plus the first area
+brought across from iGroom — subscription plans billed through Stripe:
 
 | Concern             | Where                                                                               |
 | ------------------- | ----------------------------------------------------------------------------------- |
@@ -59,6 +59,7 @@ any one area yet:
 | Back-office sign-in | `modules/auth` — Google ID token, mandatory TOTP MFA, rotating refresh tokens       |
 | Back-office users   | `modules/users` — invite (pre-provision), change role, deactivate                   |
 | Roles & permissions | `modules/roles` — RBAC, enforced per route by `requirePermission("key")`            |
+| Plans & billing     | `modules/products`, `prices`, `payment-links` — Stripe-backed, under `/billing`     |
 
 ### Adding an area
 
@@ -82,8 +83,9 @@ classes in `error-handler.ts`, and its permission keys in
 
 ### What was left out of iGroom, deliberately
 
-Shops, bookings, availability, POS, waitlist, marketplace, Stripe billing,
-uploads to S3 and the realtime (Socket.IO) server are iGroom's business. Each
+Shops, bookings, availability, POS, waitlist, marketplace, tenant accounts
+(and with them a tenant's own subscription, saved cards and invoices), uploads
+to S3 and the realtime (Socket.IO) server are iGroom's business. Each
 is a module (or, for realtime, an app plus `packages/events`) that can be
 brought across once Service Finder's own version of it is defined — the
 workspace, Dockerfile, `changed-apps.mjs` and the workflow already handle a
@@ -103,6 +105,7 @@ Chosen so Service Finder runs alongside iGroom on one machine:
 | ----------- | -------------: | -----: |
 | API         |           4000 |   3000 |
 | Back office |           5273 |   5173 |
+| Tenant app  |           5274 |   5174 |
 | Postgres    |           5433 |   5432 |
 | Valkey      |           6380 |   6379 |
 
@@ -118,6 +121,7 @@ pnpm install
 pnpm db:migrate                               # apply the migrations in packages/db/drizzle
 SEED_SUPERADMIN_EMAIL=you@gmail.com pnpm db:seed
 pnpm db:seed:permissions
+pnpm db:seed:billing                          # optional — placeholder plans, created in Stripe
 pnpm dev                                      # http://localhost:4000, docs at /docs
 ```
 
@@ -127,6 +131,10 @@ In `apps/api/.env`, fill in:
   add `http://localhost:5273` to its Authorised JavaScript origins.
 - `JWT_SECRET` and `MFA_ENCRYPTION_KEY` — `openssl rand -hex 32` each. Use
   different values from iGroom's.
+- `STRIPE_SECRET_KEY` — a test-mode key (`sk_test_...`) from Stripe Dashboard →
+  Developers → API keys. Required: the server won't start without it. A
+  separate Stripe account or sandbox from iGroom's keeps the two apps'
+  products apart.
 
 Then sign in to the back office with the seeded Google account; the first
 sign-in walks you through authenticator (TOTP) setup.
@@ -140,7 +148,7 @@ pnpm typecheck    # tsc --noEmit in every package and app — no build needed fi
 pnpm start        # run the compiled build
 pnpm lint         # oxlint
 pnpm fmt          # oxfmt — formats in place
-pnpm test         # vitest in every package and app (the db is mocked, no Postgres needed)
+pnpm test         # vitest in every package and app (the db and Stripe are mocked, no Postgres needed)
 ```
 
 The rate-limit tests also run against a real Valkey when one is given:
@@ -158,7 +166,14 @@ role that `db:seed` creates, so it has nothing to grant if run first:
 ```bash
 pnpm db:seed              # the initial super admin (bo_users) + superadmin role
 pnpm db:seed:permissions  # the bo_permissions catalog + endpoint map, granted to superadmin
+pnpm db:seed:billing      # placeholder plans (Starter, Pro, Business) — real Stripe Products/Prices
 ```
+
+`db:seed:billing` is optional: it creates its plans in whichever Stripe account
+`STRIPE_SECRET_KEY` belongs to, through the same services the Plans page uses.
+Its `CATALOG` (in `modules/products/products.seed.ts`) is a placeholder, not a
+pricing decision — edit it first, or skip it and create plans from the back
+office.
 
 **Re-run `pnpm db:seed:permissions` after pulling a change that adds a
 permission** — a new key exists only in the seed file until it does, so a role
@@ -180,5 +195,36 @@ can't be granted it and `requirePermission` will 403 everyone.
 
 Every `/users` and `/roles` route checks its permission key server-side; the
 back office hiding a tab is a convenience, not the enforcement.
+
+## Plans & billing, in short
+
+The back office's Plans page manages three things, each mirrored in Stripe and
+each created there first, so a row only exists for something Stripe has:
+
+- **Products** (`billing_products`) — the tiers. `limits` holds app-enforced
+  caps (`{"seats": 5}`; a missing key is unlimited), `trialDays` the default
+  trial.
+- **Prices** (`billing_prices`) — one active price per product and cadence
+  (monthly, quarterly, bi-annual, annual), enforced by a partial unique index.
+  Stripe Prices are immutable, so changing one means adding a new price: the
+  old one is archived here and in Stripe, and existing subscribers keep it.
+  `showOnSignup` hides a price from the public catalog without archiving it.
+- **Links** (`billing_payment_links`) — a price row's "Copy" gives a reusable
+  signup link, `TENANT_APP_URL/join/<token>`; "Create Payment Link" makes
+  one-off Stripe Payment Links with trial, seat and discount overrides (a
+  discount is a coupon plus a promotion code the buyer enters at checkout).
+
+`plans.view` reads the catalog; `plans.manage` makes every change. Two routes
+are public: `GET /billing/products` (the active, self-signup-visible catalog,
+for a pricing page) and `GET /billing/signup-links/:token` (what a signup link
+sells, for the tenant app's `/join` page).
+
+A Stripe error comes back as a 400 with Stripe's own message when Stripe
+judged the request invalid (an amount under its minimum, say), and as a 502
+otherwise.
+
+Not here yet, because it needs tenant accounts: the tenant app's `/join` page
+and the Checkout Session it starts, a tenant's subscription, saved cards and
+invoices, and the webhook that keeps them in step with Stripe.
 
 Deploying: see [deploy/README.md](deploy/README.md).

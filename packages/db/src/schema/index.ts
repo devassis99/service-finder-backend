@@ -18,4 +18,11 @@ export * from "./bo-endpoint-permissions";
 export * from "./bo-users";
 export * from "./bo-refresh-tokens";
 
+// --- Billing (modules/products, modules/prices, modules/payment-links) ---
+// Three modules, one group of tables: a price belongs to a product and a
+// payment link to a price, and all three mirror Stripe objects.
+export * from "./billing-products";
+export * from "./billing-prices";
+export * from "./billing-payment-links";
+
 // --- Service Finder's own domain goes below ---

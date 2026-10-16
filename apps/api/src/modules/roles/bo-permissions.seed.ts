@@ -58,6 +58,17 @@ const PERMISSIONS = [
     name: "Manage roles & permissions",
     description: "Create/delete roles and edit which permissions each role has.",
   },
+  {
+    key: "plans.view",
+    name: "View Plans",
+    description: "View the Plans tab (products & prices).",
+  },
+  {
+    key: "plans.manage",
+    name: "Manage Plans",
+    description:
+      "Create products, prices and payment links in Stripe, show or hide prices on self-signup, and archive (delete) them.",
+  },
 ] as const;
 
 const ENDPOINTS: Array<{
@@ -100,6 +111,54 @@ const ENDPOINTS: Array<{
     permissionKey: "roles.manage",
   },
   { method: "DELETE", path: "/roles/:roleId", name: "Delete role", permissionKey: "roles.manage" },
+  {
+    method: "GET",
+    path: "/billing/products/admin",
+    name: "List full plan catalog (admin)",
+    permissionKey: "plans.view",
+  },
+  {
+    method: "POST",
+    path: "/billing/products",
+    name: "Create product",
+    permissionKey: "plans.manage",
+  },
+  {
+    method: "PATCH",
+    path: "/billing/products/:productId/archive",
+    name: "Archive product",
+    permissionKey: "plans.manage",
+  },
+  {
+    method: "POST",
+    path: "/billing/products/:productId/prices",
+    name: "Create price",
+    permissionKey: "plans.manage",
+  },
+  {
+    method: "PATCH",
+    path: "/billing/prices/:priceId/archive",
+    name: "Archive price",
+    permissionKey: "plans.manage",
+  },
+  {
+    method: "PATCH",
+    path: "/billing/prices/:priceId/visibility",
+    name: "Show/hide price on self-signup",
+    permissionKey: "plans.manage",
+  },
+  {
+    method: "POST",
+    path: "/billing/payment-links",
+    name: "Create custom payment links",
+    permissionKey: "plans.manage",
+  },
+  {
+    method: "POST",
+    path: "/billing/prices/:priceId/payment-link",
+    name: "Get or create a price's signup link",
+    permissionKey: "plans.manage",
+  },
 ];
 
 /** `"METHOD path"` — cheap composite key since (method, path) has no single-column unique index to select on. */

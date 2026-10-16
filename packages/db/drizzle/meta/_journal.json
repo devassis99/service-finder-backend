@@ -8,6 +8,13 @@
       "when": 1791988226049,
       "tag": "0000_back_office_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792175078113,
+      "tag": "0001_billing_plans",
+      "breakpoints": true
     }
   ]
 }

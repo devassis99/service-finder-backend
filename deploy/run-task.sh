@@ -40,6 +40,7 @@ usage() {
 ALIASES="
 seed=dist/modules/auth/auth.seed.js
 seed:permissions=dist/modules/roles/bo-permissions.seed.js
+seed:billing=dist/modules/products/products.seed.js
 "
 
 # Env pairs go to a file rather than a shell string: one per line keeps a

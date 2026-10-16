@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import Stripe from "stripe";
 import { ZodError } from "zod";
 import { env } from "../../config/env";
 import {
@@ -7,6 +8,7 @@ import {
   ConflictError,
   NotFoundError as AuthNotFoundError,
 } from "../../modules/auth/auth.service";
+import { NotFoundError as BillingNotFoundError } from "../../modules/products/products.service";
 import { TooManyAttemptsError } from "../rate-limit";
 
 /**
@@ -23,7 +25,9 @@ import { TooManyAttemptsError } from "../rate-limit";
  * is loud enough to be found in the first test that throws it.
  *
  * users and roles throw the auth module's classes directly (see
- * modules/auth/index.ts), so they need no entries of their own.
+ * modules/auth/index.ts), so they need no entries of their own. The
+ * three billing modules (products, prices, payment-links) share one
+ * NotFoundError, products', and use auth's ConflictError for a 409.
  */
 // Express identifies error-handling middleware purely by arity (4 params) —
 // _next must stay in the signature even though unused.
@@ -52,7 +56,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   if (err instanceof ConflictError) {
     return res.status(409).json({ error: err.message });
   }
-  if (err instanceof AuthNotFoundError) {
+  if (err instanceof AuthNotFoundError || err instanceof BillingNotFoundError) {
     return res.status(404).json({ error: err.message });
   }
   // Sign-in and code limits (shared/rate-limit.ts). Retry-After as well as
@@ -64,6 +68,27 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
       error: err.message,
       code: "TOO_MANY_ATTEMPTS",
       retryAfterSeconds: err.retryAfterSeconds,
+    });
+  }
+  /**
+   * Stripe said no. Every billing write calls Stripe before touching our
+   * own tables, so this is where a Plans-page action fails most often.
+   *
+   * An invalid request is the admin's input as Stripe judged it — an
+   * amount under the minimum, a currency the account can't charge in —
+   * and Stripe's own message is the useful answer, so it's passed on as
+   * a 400. Anything else (a rejected key, Stripe down, a rate limit) is
+   * ours to fix, not theirs: a 502 that says Stripe failed without
+   * saying why, and the detail in the server log.
+   */
+  if (err instanceof Stripe.errors.StripeError) {
+    console.error(err);
+    if (err instanceof Stripe.errors.StripeInvalidRequestError) {
+      return res.status(400).json({ error: `Stripe: ${err.message}`, code: "STRIPE_REJECTED" });
+    }
+    return res.status(502).json({
+      error: "Stripe couldn't complete this request — try again shortly.",
+      code: "STRIPE_UNAVAILABLE",
     });
   }
   /**

@@ -37,6 +37,16 @@ const EXPECTED_PATHS = [
   "/roles/permissions",
   "/roles/{roleId}/permissions",
   "/roles/{roleId}",
+  // Billing — plans and prices in Stripe, and the links that sell them
+  "/billing/products",
+  "/billing/products/admin",
+  "/billing/products/{productId}/archive",
+  "/billing/products/{productId}/prices",
+  "/billing/prices/{priceId}/archive",
+  "/billing/prices/{priceId}/visibility",
+  "/billing/payment-links",
+  "/billing/prices/{priceId}/payment-link",
+  "/billing/signup-links/{token}",
 ];
 
 describe("the OpenAPI surface", () => {

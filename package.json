@@ -15,6 +15,7 @@
     "db:studio": "pnpm --filter @service-finder/api db:studio",
     "db:seed": "pnpm --filter @service-finder/api db:seed",
     "db:seed:permissions": "pnpm --filter @service-finder/api db:seed:permissions",
+    "db:seed:billing": "pnpm --filter @service-finder/api db:seed:billing",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt --write .",
