@@ -11,7 +11,7 @@ apps/
 packages/
   db/           @service-finder/db — the schema, its migrations (drizzle/) and the connection pools
   valkey/       @service-finder/valkey — the Valkey client, with a deadline on every call
-  auth/         @service-finder/auth — every access token's format (back office today)
+  auth/         @service-finder/auth — every access token's format (back office and business app)
 deploy/         the container entrypoint, ECS task definitions, run-task.sh, changed-apps.mjs
 Dockerfile      builds any app: `docker build --build-arg APP=api .` (api is the default)
 ```
@@ -26,7 +26,8 @@ Every command below runs from the repo root and is forwarded to the right app.
 Code goes in a package when more than one app needs it. A package never reads
 the environment: each app validates its own env (`src/config/env.ts`) and
 passes what a package needs in once, in one small file — for the API,
-`src/db/index.ts`, `src/shared/redis.ts` and `src/modules/auth/jwt.ts`. A
+`src/db/index.ts`, `src/shared/redis.ts`, `src/modules/auth/jwt.ts` and
+`src/modules/accounts/jwt.ts`. A
 dependency more than one package uses gets its version from the `catalog:` in
 `pnpm-workspace.yaml`, so the API and `@service-finder/db` can't end up on two
 drizzle-orm versions.
@@ -45,8 +46,9 @@ app that generates and applies migrations — `pnpm db:generate` and
 
 ## What's in the core
 
-Everything an area of Service Finder will be built on, plus the first area
-brought across from iGroom — subscription plans billed through Stripe:
+Everything an area of Service Finder will be built on, plus two areas brought
+across from iGroom — subscription plans billed through Stripe, and the business
+app's identity (businesses, their teams, custom roles & permissions):
 
 | Concern             | Where                                                                               |
 | ------------------- | ----------------------------------------------------------------------------------- |
@@ -60,6 +62,10 @@ brought across from iGroom — subscription plans billed through Stripe:
 | Back-office users   | `modules/users` — invite (pre-provision), change role, deactivate                   |
 | Roles & permissions | `modules/roles` — RBAC, enforced per route by `requirePermission("key")`            |
 | Plans & billing     | `modules/products`, `prices`, `payment-links` — Stripe-backed, under `/billing`     |
+| Business sign-in    | `modules/accounts` — sign-up, password/Google, optional TOTP 2FA, sessions          |
+| Business team       | `modules/staff-users` — invite by emailed link, change role, deactivate             |
+| Business roles      | `modules/staff-roles` — custom roles, `requireAccountPermission("key")`             |
+| Per-business cache  | `apps/api/src/shared/account-cache.ts` (Valkey, versioned, fail-open)               |
 
 ### Adding an area
 
@@ -67,7 +73,8 @@ One folder per area under `apps/api/src/modules/<name>/`, the same six files
 every existing module has:
 
 ```
-<name>.routes.ts       Router + requireAuth/requirePermission per route
+<name>.routes.ts       Router + requireAuth/requirePermission (back office) or
+                       requireAccountAuth/requireAccountPermission (business app) per route
 <name>.controller.ts   parse input with the validators, call the service, shape the response
 <name>.service.ts      the logic, and this module's own error classes
 <name>.validators.ts   zod schemas, registered with the OpenAPI registry
@@ -78,14 +85,19 @@ index.ts               the module's public surface — other modules import only
 Then: its tables in `packages/db/src/schema/` (+ an export in `schema/index.ts`
 and `pnpm db:generate`), its router in `app.ts`, its `*.openapi.ts` in
 `shared/openapi/document.ts`, its paths in `app.routes.test.ts`, its error
-classes in `error-handler.ts`, and its permission keys in
-`modules/roles/bo-permissions.seed.ts` (then `pnpm db:seed:permissions`).
+classes in `error-handler.ts`, and its permission keys — in
+`modules/roles/bo-permissions.seed.ts` for a back-office area (then
+`pnpm db:seed:permissions`), or in `DEFAULT_PERMISSIONS` in
+`modules/staff-roles/staff-roles.service.ts` for a business-app area (applied at
+the next boot, and granted to every Owner role automatically).
 
 ### What was left out of iGroom, deliberately
 
-Shops, bookings, availability, POS, waitlist, marketplace, tenant accounts
-(and with them a tenant's own subscription, saved cards and invoices), uploads
-to S3 and the realtime (Socket.IO) server are iGroom's business. Each
+Shops and locations, bookings, availability, POS, waitlist, marketplace,
+support sessions, a business's own subscription (the plan/checkout step in
+iGroom's sign-up, saved cards, invoices), uploads to S3 and the realtime
+(Socket.IO) server are iGroom's business. The business app came across as
+identity only — accounts, team, roles — with none of iGroom's salon logic. Each
 is a module (or, for realtime, an app plus `packages/events`) that can be
 brought across once Service Finder's own version of it is defined — the
 workspace, Dockerfile, `changed-apps.mjs` and the workflow already handle a
@@ -128,7 +140,8 @@ pnpm dev                                      # http://localhost:4000, docs at /
 In `apps/api/.env`, fill in:
 
 - `GOOGLE_CLIENT_ID` — a Google OAuth **Web** client. Reusing iGroom's works;
-  add `http://localhost:5273` to its Authorised JavaScript origins.
+  add `http://localhost:5273` (back office) and `http://localhost:5274`
+  (business app) to its Authorised JavaScript origins.
 - `JWT_SECRET` and `MFA_ENCRYPTION_KEY` — `openssl rand -hex 32` each. Use
   different values from iGroom's.
 - `STRIPE_SECRET_KEY` — a test-mode key (`sk_test_...`) from Stripe Dashboard →
@@ -137,7 +150,8 @@ In `apps/api/.env`, fill in:
   products apart.
 
 Then sign in to the back office with the seeded Google account; the first
-sign-in walks you through authenticator (TOTP) setup.
+sign-in walks you through authenticator (TOTP) setup. The business app needs no
+seed — sign a business up from its own sign-up page.
 
 Other commands:
 
@@ -151,10 +165,11 @@ pnpm fmt          # oxfmt — formats in place
 pnpm test         # vitest in every package and app (the db and Stripe are mocked, no Postgres needed)
 ```
 
-The rate-limit tests also run against a real Valkey when one is given:
+The rate-limit and account-cache tests also run against a real Valkey when one
+is given:
 
 ```bash
-TEST_REDIS_URL=redis://localhost:6380 pnpm --filter @service-finder/api exec vitest run src/shared/rate-limit.test.ts
+TEST_REDIS_URL=redis://localhost:6380 pnpm --filter @service-finder/api exec vitest run src/shared/rate-limit.test.ts src/shared/account-cache.test.ts
 ```
 
 ## Seeds
@@ -223,8 +238,54 @@ A Stripe error comes back as a 400 with Stripe's own message when Stripe
 judged the request invalid (an amount under its minimum, say), and as a 502
 otherwise.
 
-Not here yet, because it needs tenant accounts: the tenant app's `/join` page
-and the Checkout Session it starts, a tenant's subscription, saved cards and
-invoices, and the webhook that keeps them in step with Stripe.
+Not here yet: the tenant app's `/join` page and the Checkout Session it
+starts, a business's subscription, saved cards and invoices, and the webhook
+that keeps them in step with Stripe. Business accounts exist now, so these are
+the next step whenever Service Finder decides what it charges businesses for.
+
+## Business app identity, in short
+
+The business app (`service-finder-frontend-tenant`) has an identity system of
+its own, apart from the back office's: its own tables, its own refresh tokens,
+and its own access tokens (`purpose: "tenant_access"` — a back-office token is
+refused by every business route, and the other way round).
+
+- **Sign-up** (`POST /accounts/signup`) creates a business (`accounts`), its
+  default roles and its owner in one transaction. By password, by Google (the
+  token's verified email must be the work email), or both. 10 an hour per
+  device.
+- **Sign-in** is by password (`/accounts/login`, rate-limited like iGroom's) or
+  Google (`/accounts/google` — an unknown Google identity comes back as
+  `no_account`, and the app carries on into sign-up). Two-factor is optional
+  here: with it on, both answer `mfa_challenge_required` and
+  `/accounts/mfa/challenge` finishes the sign-in.
+- **Sessions** are a 15-minute access token and a 30-day, single-use refresh
+  token. `POST /accounts/refresh` rotates it with one conditional UPDATE, so
+  two racing refreshes can't both win. Changing a password signs out every
+  other session.
+- **Every 401 the app should refresh on carries `code: "TOKEN_INVALID"`** —
+  and only those. A wrong password or 2FA code is a plain 401, so a typo never
+  turns into a refresh-and-logout.
+- **Team** (`/staff`): invite someone and they get a single-use, 7-day link
+  (`TENANT_APP_URL/invite#<token>` — a fragment, so it never reaches a server
+  log). Resending or copying a fresh link retires the last one. Deactivating
+  someone ends their sessions at once.
+- **Roles** (`/staff/roles`): every business starts with Owner (system — every
+  permission, can't be renamed, edited or deleted), Manager (`staff.view`,
+  `staff.manage`, `roles.view`) and Member (`staff.view`), and can add its own.
+  Permissions: `staff.view`, `staff.manage`, `roles.view`, `roles.manage`,
+  `business.manage`.
+- **Nobody can hand out more than they hold.** Anyone but an owner can only
+  create, edit, assign or act on a role whose permissions they have
+  themselves; the Owner role and the people holding it are an owner's alone.
+  Nobody changes their own role or deactivates themselves, and the last active
+  owner can't be moved or deactivated.
+- **Per-request lookups are cached** in Valkey for a minute
+  (`shared/account-cache.ts`) and dropped by every successful change the
+  business makes, so a deactivation or a re-permissioned role applies on the
+  very next request. Without Valkey it reads straight from Postgres.
+
+Invite links and emailed codes are printed to the API's console in development
+(`[invite:dev]`, `[email:dev]`) when `RESEND_API_KEY` is unset.
 
 Deploying: see [deploy/README.md](deploy/README.md).

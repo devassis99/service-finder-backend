@@ -3,6 +3,12 @@ import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { errorHandler } from "./error-handler";
 import { NotFoundError as BillingNotFoundError } from "../../modules/products/products.service";
+import { AuthError as AccountAuthError } from "../../modules/accounts/accounts.service";
+import {
+  ConflictError as StaffConflictError,
+  ForbiddenError as StaffForbiddenError,
+  NotFoundError as StaffNotFoundError,
+} from "../../modules/staff-users/staff.errors";
 
 vi.mock("../../db", () => ({ db: {} }));
 vi.mock("../stripe", () => ({ stripe: {} }));
@@ -30,6 +36,29 @@ describe("errorHandler", () => {
     const res = run(new BillingNotFoundError("Price not found"));
     expect(res.statusCode).toBe(404);
     expect(res.body).toEqual({ error: "Price not found" });
+  });
+
+  describe("business app errors", () => {
+    it("marks a bad bearer token TOKEN_INVALID — the one 401 the app refreshes on", () => {
+      const res = run(new AccountAuthError("Invalid or expired access token", "TOKEN_INVALID"));
+      expect(res.statusCode).toBe(401);
+      expect(res.body).toEqual({
+        error: "Invalid or expired access token",
+        code: "TOKEN_INVALID",
+      });
+    });
+
+    it("leaves every other 401 unmarked, so a wrong code never triggers a refresh", () => {
+      const res = run(new AccountAuthError("Incorrect authenticator code"));
+      expect(res.statusCode).toBe(401);
+      expect(res.body).toEqual({ error: "Incorrect authenticator code" });
+    });
+
+    it("maps the team's errors to 403, 409 and 404", () => {
+      expect(run(new StaffForbiddenError("no")).statusCode).toBe(403);
+      expect(run(new StaffConflictError("taken")).statusCode).toBe(409);
+      expect(run(new StaffNotFoundError("gone")).statusCode).toBe(404);
+    });
   });
 
   describe("Stripe errors", () => {

@@ -90,12 +90,12 @@ const envSchema = z.object({
   // the server refuses to start instead of 500ing on the first "+ New
   // Product".
   STRIPE_SECRET_KEY: z.string().min(1, "STRIPE_SECRET_KEY is required for billing"),
-  // Base URL of the tenant self-signup app (service-finder-frontend-tenant).
-  // The Plans page's per-price "Copy" hands out <this>/join/<token>
-  // signup links, and that app's /join page resolves the token through
-  // the public GET /billing/signup-links/:token. Defaults to its local
-  // Vite dev server (5274, beside the back office's 5273) — override in
-  // every non-local environment.
+  // Base URL of the business (tenant) app, service-finder-frontend-tenant.
+  // Every link this API emails or hands out into that app is built on it:
+  // staff invites (<this>/invite#<token>) and the Plans page's signup
+  // links (<this>/join/<token>). Defaults to its local Vite dev server
+  // (5274, beside the back office's 5273) — override in every non-local
+  // environment.
   TENANT_APP_URL: z.string().url().default("http://localhost:5274"),
   // Resend API key for transactional email — shared/email.ts's sendEmail.
   // Optional: when unset, emails are logged to the server console instead
@@ -114,12 +114,13 @@ const envSchema = z.object({
   EMAIL_DEBUG_HTML: z.string().optional(),
   // Comma-separated list of origins allowed to call this API from a
   // browser, e.g. "http://localhost:5273,https://admin.example.com".
-  // Defaults to the back office's local Vite dev server so `pnpm dev`
-  // works out of the box — override in every non-local environment.
+  // Defaults to the two local Vite dev servers — the back office (5273)
+  // and the business app (5274) — so `pnpm dev` works out of the box.
+  // Override in every non-local environment.
   CORS_ORIGINS: z
     .string()
     .optional()
-    .default("http://localhost:5273")
+    .default("http://localhost:5273,http://localhost:5274")
     .transform((val) =>
       val
         .split(",")

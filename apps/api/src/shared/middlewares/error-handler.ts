@@ -9,6 +9,16 @@ import {
   NotFoundError as AuthNotFoundError,
 } from "../../modules/auth/auth.service";
 import { NotFoundError as BillingNotFoundError } from "../../modules/products/products.service";
+import {
+  AuthError as AccountAuthError,
+  ConflictError as AccountConflictError,
+  NotFoundError as AccountNotFoundError,
+} from "../../modules/accounts/accounts.service";
+import {
+  NotFoundError as StaffNotFoundError,
+  ConflictError as StaffConflictError,
+  ForbiddenError as StaffForbiddenError,
+} from "../../modules/staff-users/staff.errors";
 import { TooManyAttemptsError } from "../rate-limit";
 
 /**
@@ -27,7 +37,9 @@ import { TooManyAttemptsError } from "../rate-limit";
  * users and roles throw the auth module's classes directly (see
  * modules/auth/index.ts), so they need no entries of their own. The
  * three billing modules (products, prices, payment-links) share one
- * NotFoundError, products', and use auth's ConflictError for a 409.
+ * NotFoundError, products', and use auth's ConflictError for a 409. The
+ * business app has two sets: accounts' (sign-in, security) and the
+ * team's (staff-users/staff.errors.ts, shared with staff-roles).
  */
 // Express identifies error-handling middleware purely by arity (4 params) —
 // _next must stay in the signature even though unused.
@@ -47,16 +59,33 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
    */
   res.setHeader("Cache-Control", "no-store");
 
+  if (err instanceof AccountAuthError) {
+    // Only this module's AuthError carries a `code` — see its comment in
+    // accounts.service.ts. Passing it on is what lets the business app's
+    // http.ts tell "your bearer token itself is bad" (worth a silent
+    // refresh-and-retry) from every other 401 here (a wrong password, a
+    // wrong 2FA code), which isn't.
+    return res.status(401).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+  }
   if (err instanceof AuthError) {
     return res.status(401).json({ error: err.message });
   }
-  if (err instanceof ForbiddenError) {
+  if (err instanceof ForbiddenError || err instanceof StaffForbiddenError) {
     return res.status(403).json({ error: err.message });
   }
-  if (err instanceof ConflictError) {
+  if (
+    err instanceof ConflictError ||
+    err instanceof AccountConflictError ||
+    err instanceof StaffConflictError
+  ) {
     return res.status(409).json({ error: err.message });
   }
-  if (err instanceof AuthNotFoundError || err instanceof BillingNotFoundError) {
+  if (
+    err instanceof AuthNotFoundError ||
+    err instanceof BillingNotFoundError ||
+    err instanceof AccountNotFoundError ||
+    err instanceof StaffNotFoundError
+  ) {
     return res.status(404).json({ error: err.message });
   }
   // Sign-in and code limits (shared/rate-limit.ts). Retry-After as well as

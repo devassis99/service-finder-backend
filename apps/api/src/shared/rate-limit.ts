@@ -177,29 +177,72 @@ export async function takeAttempt(
 //
 // Each one is a small function returning AttemptLimit[], named for what it
 // guards, so a call site reads as a policy rather than a set of numbers.
-// When the provider and customer apps get password sign-in, iGroom's
-// passwordSignInLimits (per account+device, per device, per account) is
-// the shape to copy here.
 
 const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
 
 const minutes = (n: number) => (n === 1 ? "a minute" : `${n} minutes`);
 
+export const signInMessage = (n: number) =>
+  `Too many sign-in attempts. Try again in ${minutes(n)}, or reset your password.`;
 export const codeMessage = (n: number) => `Too many wrong codes. Try again in ${minutes(n)}.`;
 export const deviceMessage = (n: number) =>
   `Too many attempts from this device. Try again in ${minutes(n)}.`;
 
 /**
- * Authenticator codes after a correct Google sign-in: 5 wrong per account
- * per 15 minutes, across every challenge token. A code is 6 digits;
- * without this, the ten minutes one challenge token lives was enough for
- * a script to try a meaningful share of them, and signing in again minted
- * another. Per account rather than per token for exactly that reason.
+ * Password sign-in to the business app, three ways at once (iGroom's
+ * policy, unchanged):
+ *
+ * - this account from this device: 10 per 15 minutes — a person who has
+ *   forgotten their password gets ten goes, and a success clears it;
+ * - this device across accounts: 100 per 15 minutes — one address trying
+ *   a list of accounts (an office's shared connection is nowhere near
+ *   that);
+ * - this account from anywhere: 50 an hour — a slow attack spread over
+ *   many addresses. Deliberately loose: it is the one limit someone else
+ *   could run up to keep the real owner out.
+ */
+export function passwordSignInLimits(
+  audience: "staff",
+  email: string,
+  ip: string | undefined,
+): AttemptLimit[] {
+  const account = email.trim().toLowerCase();
+  const device = clientHashFor(ip);
+  const limits: AttemptLimit[] = [
+    { name: `${audience}-login:account`, subject: account, max: 50, windowMs: HOUR },
+  ];
+  if (device) {
+    limits.unshift({
+      name: `${audience}-login:account-device`,
+      subject: `${account}|${device}`,
+      max: 10,
+      windowMs: 15 * MINUTE,
+      resetOnSuccess: true,
+    });
+    limits.push({
+      name: `${audience}-login:device`,
+      subject: device,
+      max: 100,
+      windowMs: 15 * MINUTE,
+    });
+  }
+  return limits;
+}
+
+/**
+ * Authenticator codes after a correct first factor (a Google sign-in for
+ * the back office, a password or Google for the business app): 5 wrong
+ * per account per 15 minutes, across every challenge token. A code is 6
+ * digits; without this, the minutes one challenge token lives were
+ * enough for a script to try a meaningful share of them, and signing in
+ * again minted another. Per account rather than per token for exactly
+ * that reason.
  *
  * `audience` is part of the key, so the same id in two identity systems
- * never shares a counter — "bo" today, one value per audience later.
+ * never shares a counter.
  */
-export function mfaCodeLimits(audience: "bo", userId: string): AttemptLimit[] {
+export function mfaCodeLimits(audience: "bo" | "staff", userId: string): AttemptLimit[] {
   return [
     {
       name: `${audience}-mfa`,
@@ -226,4 +269,23 @@ export function deviceLimit(
 ): AttemptLimit[] {
   const device = clientHashFor(ip);
   return device ? [{ name: `${name}:device`, subject: device, max, windowMs }] : [];
+}
+
+/**
+ * Creating a business: each sign-up writes an account, its roles and an
+ * owner, and needs no account to call. 10 an hour per device — a real
+ * owner signs up once.
+ */
+export function businessSignupLimits(ip: string | undefined): AttemptLimit[] {
+  return deviceLimit("business-signup", ip, 10, HOUR);
+}
+
+/**
+ * Emailed codes (the Security page's password code). Each person is
+ * already held to one a minute in Postgres; this holds one device to 20
+ * an hour across people, so nobody can mail a list of strangers from our
+ * domain through it.
+ */
+export function emailCodeLimits(ip: string | undefined): AttemptLimit[] {
+  return deviceLimit("email-code", ip, 20, HOUR);
 }

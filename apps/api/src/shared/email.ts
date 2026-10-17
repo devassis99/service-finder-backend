@@ -78,8 +78,8 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * The back office's own colours (service-finder-frontend-bo's
- * src/styles/index.css), inlined — email clients strip <style> blocks and
+ * Service Finder's colours (service-finder-frontend-bo's and
+ * service-finder-frontend-tenant's src/styles/index.css), inlined — email clients strip <style> blocks and
  * know nothing about CSS variables.
  */
 const BRAND = {
@@ -96,6 +96,9 @@ const BRAND = {
 const SANS = "'Libre Franklin',Helvetica,Arial,sans-serif";
 const MONO = "'Roboto Mono',Menlo,Consolas,monospace";
 
+/** Which app the letterhead names under the wordmark. */
+export type Letterhead = "Backoffice" | "Business";
+
 export interface EmailTemplate {
   /** Large heading inside the card — the one thing the reader should take away. */
   heading: string;
@@ -105,6 +108,8 @@ export interface EmailTemplate {
   action?: { label: string; url: string };
   /** Small print under the action — an expiry note, a "didn't expect this?" line. */
   footnote?: string;
+  /** Defaults to "Backoffice". Business-app mail (invites, security notices) says "Business". */
+  letterhead?: Letterhead;
 }
 
 /**
@@ -117,10 +122,18 @@ export interface EmailTemplate {
  * variables are all unavailable, and a table with inline attributes is
  * still the only thing that lands the same way everywhere.
  *
- * Nothing calls this yet — it is here so the first module that sends
- * email starts from the letterhead rather than a bare `<p>`.
+ * The business app's mail (staff invites, password codes, security
+ * notices — modules/accounts and modules/staff-users) goes through here
+ * with letterhead "Business"; anything the back office sends later uses
+ * the default.
  */
-export function renderEmail({ heading, paragraphs, action, footnote }: EmailTemplate): string {
+export function renderEmail({
+  heading,
+  paragraphs,
+  action,
+  footnote,
+  letterhead = "Backoffice",
+}: EmailTemplate): string {
   const body = paragraphs
     .map(
       (text) =>
@@ -154,7 +167,7 @@ export function renderEmail({ heading, paragraphs, action, footnote }: EmailTemp
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
         <tr><td style="padding:0 4px 18px;">
           <span style="font-family:${SANS};font-size:22px;font-weight:700;letter-spacing:-0.04em;color:${BRAND.ink};">ServiceFinder</span>
-          <span style="font-family:${MONO};font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND.accent};">&nbsp;Backoffice</span>
+          <span style="font-family:${MONO};font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND.accent};">&nbsp;${letterhead}</span>
         </td></tr>
         <tr><td style="background:${BRAND.surface};border:1px solid ${BRAND.border};border-radius:20px;padding:32px;">
           <h1 style="margin:0 0 18px;font-family:${SANS};font-size:24px;line-height:1.2;font-weight:700;letter-spacing:-0.03em;color:${BRAND.ink};">${escapeHtml(heading)}</h1>

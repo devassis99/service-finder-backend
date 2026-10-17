@@ -112,11 +112,17 @@ change is one secret edit rather than a code change.
 without it — because per-device rate limits key on the caller's address: 1
 behind the ALB alone, 2 with CloudFront in front.
 
-`TENANT_APP_URL` is where the Plans page's "Copy" signup links point
-(`<TENANT_APP_URL>/join/<token>`). Unset, it falls back to the local dev
-server, `http://localhost:5274`, which is wrong for any deployed environment.
-Links are rebuilt from their token on every read, so changing it later moves
-every link already handed out along with it.
+`TENANT_APP_URL` is the business app's address, and every link this API hands
+out into it is built on it: staff invites (`<TENANT_APP_URL>/invite#<token>`)
+and the Plans page's "Copy" signup links (`<TENANT_APP_URL>/join/<token>`).
+Unset, it falls back to the local dev server, `http://localhost:5274`, which is
+wrong for any deployed environment — invite emails would point at localhost.
+Signup links are rebuilt from their token on every read, so changing it later
+moves every one already handed out along with it; an invite already emailed
+keeps the address it was sent with.
+
+`CORS_ORIGINS` has to list the business app's origin as well as the back
+office's, or its browser calls are refused.
 
 Use a test-mode `STRIPE_SECRET_KEY` (`sk_test_...`) for any environment that
 isn't taking real payments.

@@ -15,6 +15,13 @@
       "when": 1792175078113,
       "tag": "0001_billing_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792178309287,
+      "tag": "0002_business_accounts",
+      "breakpoints": true
     }
   ]
 }

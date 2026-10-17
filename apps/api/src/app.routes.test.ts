@@ -14,7 +14,7 @@ import { generateOpenApiDocument } from "./shared/openapi/document";
  *    test failure.
  *  - A route that exists but was never registered in the document is a
  *    route nobody outside this repo can discover. The list below is the
- *    contract the back office is written against; a rename on either
+ *    contract the back office and the business app are written against; a rename on either
  *    side should break here first. Add a module's paths here when it
  *    lands.
  */
@@ -47,6 +47,36 @@ const EXPECTED_PATHS = [
   "/billing/payment-links",
   "/billing/prices/{priceId}/payment-link",
   "/billing/signup-links/{token}",
+  // Business app — the business, signing in, and the caller's own security
+  "/accounts/signup",
+  "/accounts/login",
+  "/accounts/google",
+  "/accounts/mfa/challenge",
+  "/accounts/refresh",
+  "/accounts/logout",
+  "/accounts/invite/redeem",
+  "/accounts/me",
+  "/accounts/me/profile",
+  "/accounts/me/password/initial",
+  "/accounts/settings/business",
+  "/accounts/security/password/request-code",
+  "/accounts/security/password/confirm",
+  "/accounts/security/mfa/setup",
+  "/accounts/security/mfa/confirm",
+  "/accounts/security/mfa/disable",
+  "/accounts/security/sessions",
+  "/accounts/security/sessions/{sessionId}/revoke",
+  "/accounts/security/sessions/revoke-others",
+  // Business app — the team and its roles
+  "/staff",
+  "/staff/{staffId}",
+  "/staff/{staffId}/active",
+  "/staff/{staffId}/invite/resend",
+  "/staff/{staffId}/invite/link",
+  "/staff/roles",
+  "/staff/roles/permissions",
+  "/staff/roles/{roleId}",
+  "/staff/roles/{roleId}/permissions",
 ];
 
 describe("the OpenAPI surface", () => {

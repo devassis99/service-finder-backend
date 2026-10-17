@@ -8,6 +8,8 @@ import { rolesRouter } from "./modules/roles";
 import { productsRouter } from "./modules/products";
 import { pricesRouter } from "./modules/prices";
 import { paymentLinksRouter } from "./modules/payment-links";
+import { accountsRouter } from "./modules/accounts";
+import { staffRouter } from "./modules/staff-users";
 import { errorHandler } from "./shared/middlewares/error-handler";
 import { generateOpenApiDocument } from "./shared/openapi/document";
 
@@ -34,8 +36,8 @@ if (env.NODE_ENV === "production" && process.env.TRUST_PROXY_HOPS === undefined)
 }
 if (env.TRUST_PROXY_HOPS > 0) app.set("trust proxy", env.TRUST_PROXY_HOPS);
 
-// The back office (and, later, the provider and customer web apps) are
-// separate SPAs calling this API cross-origin. Auth is bearer-token
+// The back office and the business app (and, later, the customer app)
+// are separate SPAs calling this API cross-origin. Auth is bearer-token
 // based, not cookie based, so `credentials: true` isn't needed — but the
 // allow-list still comes from CORS_ORIGINS (env.ts) so it's explicit and
 // configurable per environment rather than wildcarded.
@@ -78,13 +80,24 @@ app.use("/billing", productsRouter);
 app.use("/billing", pricesRouter);
 app.use("/billing", paymentLinksRouter);
 
+// --- Business app ---------------------------------------------------------
+// service-finder-frontend-tenant: the businesses on Service Finder and the
+// people who run them. Its own identity system, apart from the back
+// office's — its own tokens ("tenant_access", see @service-finder/auth),
+// refresh tokens and tables — so neither audience's token is ever
+// accepted by the other's routes. /accounts is the business and the
+// caller's own sign-in and security; /staff is the team and its roles
+// (requireAccountAuth + a staff_permissions key on every route).
+app.use("/accounts", accountsRouter);
+app.use("/staff", staffRouter);
+
 // --- Service Finder's own domain goes here -------------------------------
 // One module per area under src/modules/<name>/ (routes, controller,
-// service, validators, openapi, index), mounted with its own prefix. When
-// the provider and customer apps arrive they get their own identity
-// modules and their own URL families — iGroom's split of /accounts for
-// the business side and /app for the consumer side is the pattern to
-// copy — rather than sharing the back office's /auth.
+// service, validators, openapi, index), mounted with its own prefix. A
+// business-side area sits behind requireAccountAuth and gates on its own
+// keys, added to staff-roles.service.ts's DEFAULT_PERMISSIONS. The
+// customer app, when it arrives, gets its own identity module and URL
+// family (iGroom's /app is the pattern), not /accounts.
 
 // Interactive API docs at /docs, generated from the same Zod schemas
 // that validate requests (each module's *.validators.ts) — the two

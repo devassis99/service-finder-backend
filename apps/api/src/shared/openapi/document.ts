@@ -12,6 +12,9 @@ import "../../modules/roles/roles.openapi";
 import "../../modules/products/products.openapi";
 import "../../modules/prices/prices.openapi";
 import "../../modules/payment-links/payment-links.openapi";
+import "../../modules/accounts/accounts.openapi";
+import "../../modules/staff-users/staff.openapi";
+import "../../modules/staff-roles/staff-roles.openapi";
 
 /** Builds the OpenAPI document fresh from whatever's currently registered — call once at startup, not per-request. */
 export function generateOpenApiDocument() {
@@ -22,7 +25,7 @@ export function generateOpenApiDocument() {
       title: "Service Finder API",
       version: "1.0.0",
       description:
-        "Back-office identity — Google OAuth + mandatory TOTP MFA and RBAC — and subscription billing (plans and prices mirrored in Stripe), with Service Finder's own domain to follow.",
+        "Back-office identity — Google OAuth + mandatory TOTP MFA and RBAC — subscription billing (plans and prices mirrored in Stripe), and the business app's identity: businesses, their teams, and custom roles & permissions. Service Finder's own domain follows.",
     },
     servers: [{ url: "/", description: "Current server" }],
     tags: [
@@ -33,6 +36,16 @@ export function generateOpenApiDocument() {
       {
         name: "Billing",
         description: "Subscription plans, prices and payment links, mirrored in Stripe",
+      },
+      {
+        name: "Business Accounts",
+        description:
+          "The business app: sign-up, sign-in (password or Google, optional TOTP 2FA), invites, and the caller's own profile and security",
+      },
+      { name: "Business Team", description: "Invite and manage the people on a business" },
+      {
+        name: "Business Roles",
+        description: "A business's custom roles and what each one may do",
       },
     ],
   });

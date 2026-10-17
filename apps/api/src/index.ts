@@ -1,9 +1,17 @@
 import { app } from "./app";
 import { env } from "./config/env";
-import { closeDb } from "./db";
+import { closeDb, db } from "./db";
+import { ensurePermissionCatalog } from "./modules/staff-roles";
 import { closeRedis, warmRedis } from "./shared/redis";
 
 async function main() {
+  // Keeps the business app's permission catalog in step with the code on
+  // every deploy: a no-op once every key exists, and the moment a new key
+  // first lands it is granted to every business's Owner role too (see
+  // ensurePermissionCatalog). Without it, a business created before the
+  // key shipped would never get it.
+  await ensurePermissionCatalog(db);
+
   const server = app.listen(env.PORT, () => {
     console.log(`service-finder-backend listening on port ${env.PORT}`);
   });

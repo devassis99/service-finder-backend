@@ -47,10 +47,10 @@ export function generateTotpSecret(): string {
 /**
  * The otpauth:// URI an authenticator app (Google Authenticator, Authy,
  * etc.) reads via QR code. `issuer` is the label the entry gets in that
- * app. It defaults to the back office's own; a future provider- or
- * customer-facing MFA flow should pass its own ("ServiceFinder") so a
- * business owner's authenticator entry doesn't read "Back Office", which
- * isn't the app they're using.
+ * app. It defaults to the back office's own; the business app passes
+ * "ServiceFinder" (modules/accounts/security.service.ts) so a business
+ * owner's authenticator entry doesn't read "Backoffice", which isn't the
+ * app they're using. A customer-facing flow should pass its own too.
  */
 export async function buildOtpAuthUrl(
   accountEmail: string,
